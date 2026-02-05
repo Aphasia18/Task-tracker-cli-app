@@ -1,29 +1,28 @@
-import json
-import os
-TASKS_FILE = "tasks.json"
+from datetime import datetime
 
-def load_tasks():
-    if not os.path.exists(TASKS_FILE):
-        return []
-    
-    with open(TASKS_FILE, "r") as file:
-        return json.load(file)
+from loader import (
+    load_tasks,
+    save_tasks,
+    load_done_tasks,
+    save_done_tasks,
+    load_in_progress,
+    save_in_progress,
+)
 
-def save_tasks(tasks):
-    with open(TASKS_FILE, "w") as file:
-        json.dump(tasks,file,indent=4)
+tasks = load_tasks()
 
-
-
+ 
 class Task():
-    def __init__(self,title,complete = False):
+    def __init__(self,title,status = "todo",created_at=None):
         self.title = title
-        self.complete = complete
+        self.status = status
+        self.created_at = created_at or datetime.now().strftime("%Y-%m-%d %H:%M")
     
     def to_dict(self):
         return {
             "title": self.title,
-            "complete": self.complete
+            "status": self.status,
+            "created_at": self.created_at
         }
     
 
@@ -35,7 +34,6 @@ class TaskManager():
         self.tasks = load_tasks()
         task = Task(title)
         self.tasks.append(task.to_dict())
-
         save_tasks(self.tasks)
 
     def delete_task(self,index):
@@ -43,18 +41,64 @@ class TaskManager():
         self.tasks.pop(index - 1)
         save_tasks(self.tasks)
     
-    def complete_task(self,index):
+    def mark_in_progress(self,index):
         self.tasks = load_tasks()
-        self.tasks[index - 1]["complete"] = True
+        task = self.tasks.pop(index-1)
+        task["status"] = "in_progress"
+        in_progress_task = load_in_progress()
+        in_progress_task.append(task)
         save_tasks(self.tasks)
-    
-    def list_tasks(self):
-        self.tasks = load_tasks()
+        save_in_progress(in_progress_task)
 
-        if not self.tasks:
+
+    def mark_done(self,index):
+        self.tasks = load_tasks()
+        task = self.tasks.pop(index-1)
+        task["status"] = "done"
+        done_tasks = load_done_tasks()
+        done_tasks.append(task)
+        save_tasks(self.tasks)
+        save_done_tasks(done_tasks)
+        
+    
+    def _list_tasks(self,tasks):
+        if not tasks:
             print("No tasks found")
             return
+
+        status_map ={
+                "todo": " ",
+                "in_progress": "~",
+                "done": "✓"
+            }
         
-        for i, task in enumerate(self.tasks, start=1):
-            status = "✓" if task["complete"] else " "
-            print(f"[{i}] [{status}] {task['title']}")
+        for i, task in enumerate(tasks, start=1):
+            status = status_map.get(task.get("status"), "?")
+            created = task.get("created_at", "Unknown date")
+            print(f"[{i}] [{status}] {task['title']} (created: {created})")
+            
+    def list_all_tasks(self):
+        print(">>> list_all_tasks CALLED <<<")
+        print("\nTODO:")
+        self._list_tasks(load_tasks() or [])
+
+        print("\nIN PROGRESS:")
+        self._list_tasks(load_in_progress() or [])
+
+        print("\nDONE:")
+        self._list_tasks(load_done_tasks() or [])
+
+
+
+    def list_tasks(self):
+        self.tasks = load_tasks()
+        self._list_tasks(self.tasks)
+            
+
+    def list_done_tasks(self):
+        self.tasks = load_done_tasks()
+        self._list_tasks(self.tasks)
+
+    def list_in_progress_tasks(self):
+        self.tasks = load_in_progress()
+        self._list_tasks(self.tasks)
